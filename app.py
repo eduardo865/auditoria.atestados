@@ -11,36 +11,34 @@ st.set_page_config(page_title="Auditoria de Atestados", page_icon="📄")
 def get_storage_client():
     try:
         if "gcp_json_base64" in st.secrets:
-            # Pega o texto e remove qualquer caractere que não seja Base64
-            raw_b64 = st.secrets["gcp_json_base64"]
-            clean_b64 = re.sub(r'[^a-zA-Z0-9+/=]', '', raw_b64)
+            # 1. Limpa a string de qualquer resquício de caractere invisível
+            b64_str = re.sub(r'[^a-zA-Z0-9+/=]', '', st.secrets["gcp_json_base64"])
             
-            # Decodifica e carrega como JSON
-            decoded_bytes = base64.b64decode(clean_b64)
-            info = json.loads(decoded_bytes.decode("utf-8"))
+            # 2. Decodifica
+            decoded_bytes = base64.b64decode(b64_str)
+            decoded_str = decoded_bytes.decode("utf-8")
+            
+            # 3. Transforma em dicionário
+            info = json.loads(decoded_str)
             
             credentials = service_account.Credentials.from_service_account_info(info)
             return storage.Client(credentials=credentials, project=info['project_id'])
         else:
-            st.error("Configuração 'gcp_json_base64' não encontrada nos Secrets.")
+            st.error("Secret não encontrado.")
             st.stop()
     except Exception as e:
         st.error(f"Erro Crítico: {e}")
         st.stop()
 
-# --- INTERFACE ---
+# --- Restante do código (Título e Upload) ---
 storage_client = get_storage_client()
-BUCKET_NAME = "atestados-saida-final"
+st.title("📄 Auditoria Pronta")
+st.success("Conectado com sucesso!")
 
-st.title("📄 Sistema de Auditoria")
-st.success("Conexão com Google Cloud Ativa!")
-
-files = st.file_uploader("Selecione os arquivos", type=["pdf", "jpg", "png"], accept_multiple_files=True)
-
-if files:
-    bucket = storage_client.bucket(BUCKET_NAME)
-    for f in files:
-        with st.spinner(f"Enviando {f.name}..."):
-            blob = bucket.blob(f.name)
-            blob.upload_from_string(f.read(), content_type=f.type)
-            st.success(f"✅ {f.name} enviado!")
+u_files = st.file_uploader("Selecione os arquivos", accept_multiple_files=True)
+if u_files:
+    bucket = storage_client.bucket("atestados-saida-final")
+    for f in u_files:
+        blob = bucket.blob(f.name)
+        blob.upload_from_string(f.read(), content_type=f.type)
+        st.success(f"Enviado: {f.name}")
